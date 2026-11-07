@@ -1,16 +1,25 @@
 /* Trester Times 網頁版：疊加在報紙版式 CSS 之上，不改動原版式 */
-html{-webkit-text-size-adjust:100%}
-body{background:#cfc8b8;padding-top:44px}
-.tt-bar{position:fixed;top:0;left:0;right:0;z-index:50;height:44px;display:flex;align-items:center;gap:14px;padding:0 16px;background:#1a1814;color:#f3efe3;font:500 13px/1 "Noto Sans TC","Noto Sans CJK TC",sans-serif}
-.tt-bar a,.tt-bar button{color:#f3efe3;text-decoration:none;white-space:nowrap}
+@font-face{font-family:Uni;src:url(/assets/fonts/uni.woff2)}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:56px}
+body{background:#cfc8b8;padding-top:44px;margin:0}
+
+/* 工具列 */
+.tt-bar{position:fixed;top:0;left:0;right:0;z-index:50;height:44px;display:flex;align-items:center;gap:12px;padding:0 16px;background:#1a1814;color:#f3efe3;font:500 13px/1 "Noto Sans TC","Noto Sans CJK TC",sans-serif}
+.tt-bar a,.tt-bar button,.tt-bar .pn{color:#f3efe3;text-decoration:none;white-space:nowrap}
+.tt-bar a:hover{color:#e8b4a8}
 .tt-bar .home{font:400 21px/1 Uni,serif;letter-spacing:.01em;margin-right:4px}
 .tt-bar .date{opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tt-bar .sp{flex:1}
-.tt-bar button{background:none;border:1px solid #6b6556;color:#f3efe3;font:inherit;padding:6px 10px;cursor:pointer;border-radius:2px}
+.tt-bar .pn.off{opacity:.3;cursor:default}
+.tt-bar button{background:none;border:1px solid #6b6556;font:inherit;padding:6px 10px;cursor:pointer;border-radius:2px}
 .tt-bar button[aria-pressed=true]{background:#8a1c1c;border-color:#8a1c1c}
 .tt-bar .seg{display:flex}.tt-bar .seg button+button{border-left:0}
+.tt-bar .jump{background:#1a1814;color:#f3efe3;border:1px solid #6b6556;border-radius:2px;font:inherit;padding:5px 6px;cursor:pointer}
+.tt-progress{position:fixed;top:44px;left:0;height:2px;background:#8a1c1c;width:0;z-index:51;transition:width .1s linear}
+
+/* 版面模式 */
 .tt-sheets{padding:24px 0 40px}
-.tt-sheets .page{margin:0 auto 24px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 6px 24px rgba(0,0,0,.14)}
+.tt-sheets .page{margin:0 auto 24px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 6px 24px rgba(0,0,0,.14);scroll-margin-top:56px}
 
 /* 閱讀模式：同一套內容重排為單欄，給手機與長文閱讀 */
 .tt-read .tt-sheets{padding:12px 0 40px;zoom:1!important}
@@ -38,18 +47,38 @@ body{background:#cfc8b8;padding-top:44px}
 .tt-read .navb>div{border-right:0;padding:1.4mm 0 0}
 .tt-read .rh{grid-template-columns:1fr;text-align:center}.tt-read .rh .l{display:none}.tt-read .rh .r{text-align:center;margin-top:1mm}
 .tt-read .foot{flex-direction:column;gap:.6mm}
-.tt-read .page:not(:first-child){margin-top:0}
 
-@media (max-width:600px){
-  .tt-bar{gap:10px;padding:0 10px}
-  .tt-bar .date,.tt-bar [data-print]{display:none}
+/* 舊期：原版面圖片 */
+.pdfpages{padding:20px 12px 40px}
+.pdfpages .note{max-width:794px;margin:0 auto 14px;font:400 13px/1.6 "Noto Sans TC","Noto Sans CJK TC",sans-serif;color:#3b372e}
+.pdfpages .note .m{display:none}
+.pg{max-width:794px;margin:0 auto 20px;scroll-margin-top:56px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 6px 24px rgba(0,0,0,.14);background:#f3efe3}
+.pg img{display:block;width:100%;height:auto}
+
+/* 文章底部：前後期 */
+.tt-end{max-width:794px;margin:8px auto 48px;padding:0 12px;display:grid;grid-template-columns:1fr 1fr;gap:12px;font:500 14px/1.5 "Noto Sans TC","Noto Sans CJK TC",sans-serif}
+.tt-end a{display:block;padding:12px 14px;background:#f3efe3;color:#1a1814;text-decoration:none;border-top:2px solid #1a1814}
+.tt-end a small{display:block;color:#8a1c1c;font-size:12px}
+.tt-end .next{text-align:right;grid-column:2}
+.tt-read .tt-end{max-width:560px}
+
+@media (max-width:640px){
+  .tt-bar{gap:9px;padding:0 10px}
+  .tt-bar .date,.tt-bar .prt,.tt-bar .pn span{display:none}
+  .tt-bar .pn{font-size:20px;padding:0 2px}
   .tt-bar .home{font-size:19px}
   .tt-bar button{padding:6px 8px}
   .tt-read .mast h1{font-size:25pt}
+  .pdfpages{padding:12px 0 30px}
+  .pdfpages .note{padding:0 12px}.pdfpages .note .m{display:inline}
+  .pg{margin-bottom:10px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pg.zoom img{width:240%;max-width:none}
 }
+
 @media print{
   body{background:none;padding:0}
-  .tt-bar{display:none}
-  .tt-sheets{padding:0;zoom:1!important}
+  .tt-bar,.tt-progress,.tt-end,.pdfpages .note{display:none}
+  .tt-sheets,.pdfpages{padding:0;zoom:1!important}
   .tt-sheets .page{margin:0;box-shadow:none}
+  .pg{margin:0;box-shadow:none;max-width:none;page-break-after:always}
 }
