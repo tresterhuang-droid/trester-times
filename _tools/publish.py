@@ -136,6 +136,38 @@ def build_edition(src: Path, d: dt.date, prev_id):
     return str(soup), meta
 
 
+PDF_CSS = """
+@font-face{font-family:Uni;src:url(/assets/fonts/uni.woff2)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#cfc8b8}
+.pdfpages{padding:24px 12px 40px}
+.pdfpages img{display:block;width:100%;max-width:794px;margin:0 auto 20px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 6px 24px rgba(0,0,0,.14);background:#f3efe3}
+.note{max-width:794px;margin:0 auto 14px;font:400 13px/1.6 "Noto Sans TC","Noto Sans CJK TC",sans-serif;color:#3b372e}
+@media (max-width:600px){.pdfpages{padding:12px 0 30px}.pdfpages img{margin-bottom:10px}.note{padding:0 12px}}
+@media print{body{background:none;padding:0}.tt-bar,.note{display:none}.pdfpages{padding:0}.pdfpages img{margin:0;box-shadow:none;max-width:none;page-break-after:always}}
+"""
+
+
+def build_pdf_edition(pdf: Path, d: dt.date, prev_id, meta_in: dict):
+    """由過去的 PDF 建立網頁版：每頁轉成圖片內嵌（無法切換閱讀模式）。"""
+    with tempfile.TemporaryDirectory() as td:
+        subprocess.run(["pdftoppm", "-r", "120", "-jpeg", "-jpegopt", "quality=74", str(pdf), f"{td}/p"], check=True)
+        imgs = sorted(Path(td).glob("p-*.jpg"), key=lambda f: int(f.stem.split("-")[1]))
+        tags = "".join(f'<img alt="第{i}版" src="data:image/jpeg;base64,{base64.b64encode(f.read_bytes()).decode()}">'
+                       for i, f in enumerate(imgs, 1))
+    prev = f'<a href="/e/{prev_id}/">‹ 前一期</a>' if prev_id else ""
+    html = f'''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<title>Trester Times｜{date_zh(d)}</title>{FONTS_LINK}<style>{PDF_CSS}</style>
+<link rel="stylesheet" href="/assets/web.css"></head><body>
+<nav class="tt-bar"><a class="home" href="/">Trester Times</a><span class="date">{date_zh(d)}</span><span class="sp"></span>{prev}<a href="/#archive">歸檔</a><button onclick="print()" data-print>列印</button></nav>
+<main class="pdfpages"><p class="note">本期為網站上線前的存檔，以 PDF 版面呈現。</p>{tags}</main></body></html>'''
+    meta = {"id": d.strftime("%Y%m%d"), "date": d.isoformat(), "date_zh": date_zh(d),
+            "headline": meta_in.get("headline", ""), "tag": meta_in.get("tag", ""), "deck": meta_in.get("deck", ""),
+            "teasers": meta_in.get("teasers", []), "pages": len(imgs), "source": "pdf"}
+    return html, meta
+
+
 def esc(s):
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
@@ -203,18 +235,24 @@ footer{{margin-top:40px;border-top:1px solid #1a1814;padding-top:8px;font:400 12
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True, help="含 times.html 與圖片的資料夾")
+    ap.add_argument("--src", help="含 times.html 與圖片的資料夾")
+    ap.add_argument("--pdf", help="改用過去的 PDF 建立當期（補上線前的舊期）")
+    ap.add_argument("--meta", help="搭配 --pdf：JSON 檔，含 headline/tag/deck/teasers")
     ap.add_argument("--date", required=True, help="YYYYMMDD")
     a = ap.parse_args()
     pw = os.environ.get("TT_PASSWORD")
     if not pw:
         sys.exit("缺少環境變數 TT_PASSWORD")
-    src = Path(a.src).resolve()
     d = dt.datetime.strptime(a.date, "%Y%m%d").date()
 
     entries = [e for e in load_manifest(pw) if e["id"] != a.date]
     older = sorted(e["id"] for e in entries if e["id"] < a.date)
-    html, meta = build_edition(src, d, older[-1] if older else None)
+    prev_id = older[-1] if older else None
+    if a.pdf:
+        meta_in = json.loads(Path(a.meta).read_text(encoding="utf-8")) if a.meta else {}
+        html, meta = build_pdf_edition(Path(a.pdf).resolve(), d, prev_id, meta_in)
+    else:
+        html, meta = build_edition(Path(a.src).resolve(), d, prev_id)
     entries.append(meta)
 
     with tempfile.TemporaryDirectory() as td:
