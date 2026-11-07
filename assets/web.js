@@ -22,11 +22,12 @@
     document.querySelectorAll('.page').forEach(function (pg) {
       var b = pg.querySelector('.body') || pg.querySelector('.fgrid');
       if (!b) return;
-      var kids = Array.prototype.slice.call(b.children), best = 1;
-      for (var z = 1; z <= 1.6; z += 0.01) {
-        kids.forEach(function (k) { k.style.zoom = z; });
-        if (b.scrollHeight - b.clientHeight > 1) break;
-        best = z;
+      var kids = Array.prototype.slice.call(b.children), best = 1, z;
+      var over = function (v) { kids.forEach(function (k) { k.style.zoom = v; }); return b.scrollHeight - b.clientHeight > 1; };
+      if (over(1)) {            // 內容超出一頁：縮小到剛好放得下
+        for (z = 0.99; z >= 0.6; z -= 0.01) { best = z; if (!over(z)) break; }
+      } else {                  // 內容不足一頁：放大到剛好填滿
+        for (z = 1.01; z <= 1.6; z += 0.01) { if (over(z)) break; best = z; }
       }
       kids.forEach(function (k) { k.style.zoom = best; });
     });

@@ -137,7 +137,7 @@ def toolbar(eid, d, prev_id, next_id, pages, modes):
             f'<span class="date">{date_zh(d)}</span><span class="sp"></span>'
             f'<select class="jump" aria-label="跳到版次"><option value="">版次</option>{opts}</select>'
             f'{nav_link("prev", prev_id)}{nav_link("next", next_id)}'
-            f'<a class="arc" href="/#archive">歸檔</a>{seg}<button class="prt" data-print>列印</button></nav>')
+            f'<a class="arc" href="/#archive">回歷史資料庫</a>{seg}<button class="prt" data-print>列印</button></nav>')
 
 
 def set_nav(eid, kind, target, password):
@@ -274,7 +274,7 @@ header .pub{font:400 12px "Noto Sans TC",sans-serif;letter-spacing:.25em;color:v
 .teasers .tg{display:block;font:700 12px "Noto Sans TC",sans-serif;color:var(--red)}
 .teasers em{display:block;font:400 12px "Noto Sans TC",sans-serif;color:var(--mute);font-style:normal;margin-top:3px}
 #archive{margin-top:40px;scroll-margin-top:12px}
-#archive>h2{font:900 13px "Noto Sans TC",sans-serif;letter-spacing:.4em;color:var(--red);border-top:3px solid var(--ink);border-bottom:1px solid var(--ink);padding:6px 0;margin-bottom:14px;display:flex;justify-content:space-between}
+#archive>h2{font:900 13px "Noto Sans TC",sans-serif;letter-spacing:.2em;color:var(--red);border-top:3px solid var(--ink);border-bottom:1px solid var(--ink);padding:6px 0;margin-bottom:14px;display:flex;justify-content:space-between}
 #archive>h2 small{font-weight:400;letter-spacing:.05em;color:var(--mute)}
 .tools{display:flex;flex-direction:column;gap:10px;margin-bottom:6px}
 .search{display:flex;align-items:center;border-bottom:1.5px solid var(--ink);padding:4px 2px}
@@ -373,12 +373,12 @@ def build_index(entries):
     return f'''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">{HEAD_META}
 <title>Trester Times</title>{FONTS_LINK}<style>{INDEX_CSS}</style></head><body><div class="wrap">
 <header><h1>Trester Times</h1><div class="sub">每日晨報　·　城市／地方／制度／世界</div><div class="pub">發行人　Cho-Yun, Huang</div></header>
-<div class="bar"><span><b>最新一期</b>　{esc(latest["date_zh"])}</span><span><a href="#archive">歸檔 {len(entries)} 期 ↓</a></span></div>
+<div class="bar"><span><b>最新一期</b>　{esc(latest["date_zh"])}</span><span><a href="#archive">歷史資料庫 {len(entries)} 期 ↓</a></span></div>
 <div class="resume">上次讀到<a href="#"></a></div>
 <a class="latest" href="/e/{latest["id"]}/" data-id="{latest["id"]}"><div class="kicker"><span class="today" style="display:none">今日</span>{kick_tag}</div>
 <h2>{esc(latest["headline"])}</h2><p>{esc(latest.get("deck"))}</p><span class="go">閱讀 {ld.month}/{ld.day} 晨報</span></a>
 {teas_html}
-<section id="archive"><h2>歸　檔<small>共 {len(entries)} 期</small></h2>
+<section id="archive"><h2>歷史資料庫<small>共 {len(entries)} 期</small></h2>
 <div class="tools"><label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
 <input type="search" placeholder="搜尋頭條，例如：都更、選舉、颱風" aria-label="搜尋頭條"></label><div class="chips">{chips}</div></div>
 {"".join(months)}<p class="empty">沒有符合的期數</p></section>
@@ -393,6 +393,7 @@ def main():
     ap.add_argument("--pdf", help="改用過去的 PDF 建立當期（補上線前的舊期）")
     ap.add_argument("--meta", help="搭配 --pdf：JSON 檔，含 headline/tag/cat/deck/teasers")
     ap.add_argument("--date", required=True, help="YYYYMMDD")
+    ap.add_argument("--category", help="頭條類別（與 Notion 晨報歷史庫相同的選項）")
     a = ap.parse_args()
     pw = os.environ.get("TT_PASSWORD")
     if not pw:
@@ -414,6 +415,8 @@ def main():
         page, meta = build_pdf_edition(Path(a.pdf).resolve(), d, prev_id, next_id, meta_in)
     else:
         page, meta = build_edition(Path(a.src).resolve(), d, prev_id, next_id)
+    if a.category:
+        meta["cat"] = a.category
     entries.append(meta)
 
     HEADLINES[a.date] = meta["headline"]

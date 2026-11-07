@@ -82,3 +82,6 @@ body{background:#cfc8b8;padding-top:44px;margin:0}
   .tt-sheets .page{margin:0;box-shadow:none}
   .pg{margin:0;box-shadow:none;max-width:none;page-break-after:always}
 }
+
+/* 資料來源含長網址：不撐開字距，允許在網址中斷行 */
+.src{text-align:left!important;overflow-wrap:anywhere;word-break:break-all}
