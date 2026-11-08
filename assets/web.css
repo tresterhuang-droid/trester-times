@@ -1,7 +1,7 @@
 /* Trester Times 網頁版：疊加在報紙版式 CSS 之上，不改動原版式 */
 @font-face{font-family:Uni;src:url(/assets/fonts/uni.woff2)}
 html{-webkit-text-size-adjust:100%;scroll-padding-top:56px}
-body{background:#cfc8b8;padding-top:44px;margin:0}
+body{background:#cfc8b8;padding-top:44px;margin:0;overflow-x:hidden}
 
 /* 工具列 */
 .tt-bar{position:fixed;top:0;left:0;right:0;z-index:50;height:44px;display:flex;align-items:center;gap:12px;padding:0 16px;background:#1a1814;color:#f3efe3;font:500 13px/1 "Noto Sans TC","Noto Sans CJK TC",sans-serif}
@@ -19,10 +19,11 @@ body{background:#cfc8b8;padding-top:44px;margin:0}
 
 /* 版面模式 */
 .tt-sheets{padding:24px 0 40px}
+.tt-sheets .page.grow{height:auto;min-height:297mm}
 .tt-sheets .page{margin:0 auto 24px;box-shadow:0 1px 2px rgba(0,0,0,.18),0 6px 24px rgba(0,0,0,.14);scroll-margin-top:56px}
 
 /* 閱讀模式：同一套內容重排為單欄，給手機與長文閱讀 */
-.tt-read .tt-sheets{padding:12px 0 40px;zoom:1!important}
+.tt-read .tt-sheets{padding:12px 0 40px;zoom:1!important;transform:none!important;width:auto!important;margin-bottom:0!important}
 .tt-read .page{width:auto;max-width:560px;height:auto;overflow:visible;padding:16px 14px 12px;margin:0 auto 14px;zoom:1.38}
 .tt-read .body,.tt-read .fgrid{display:block}
 .tt-read .body>*,.tt-read .fgrid>*{zoom:1!important}
@@ -78,7 +79,7 @@ body{background:#cfc8b8;padding-top:44px;margin:0}
 @media print{
   body{background:none;padding:0}
   .tt-bar,.tt-progress,.tt-end,.pdfpages .note{display:none}
-  .tt-sheets,.pdfpages{padding:0;zoom:1!important}
+  .tt-sheets,.pdfpages{padding:0;zoom:1!important;transform:none!important;width:auto!important;margin:0!important}
   .tt-sheets .page{margin:0;box-shadow:none}
   .pg{margin:0;box-shadow:none;max-width:none;page-break-after:always}
 }

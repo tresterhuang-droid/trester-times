@@ -19,7 +19,9 @@
 
   // 版面模式：與 render.js 同一套演算法，逐頁放大內容直到剛好填滿
   function fitPages() {
+    if (!sheets || body.classList.contains('tt-read')) return;
     document.querySelectorAll('.page').forEach(function (pg) {
+      pg.classList.remove('grow');
       var b = pg.querySelector('.body') || pg.querySelector('.fgrid');
       if (!b) return;
       var kids = Array.prototype.slice.call(b.children), best = 1, z;
@@ -30,12 +32,27 @@
         for (z = 1.01; z <= 1.6; z += 0.01) { if (over(z)) break; best = z; }
       }
       kids.forEach(function (k) { k.style.zoom = best; });
+      // 縮到下限仍放不下：讓這一版往下延伸，避免文字壓到頁尾
+      if (b.scrollHeight - b.clientHeight > 1) pg.classList.add('grow');
     });
   }
+  // 字型分批載入（iPhone 等沒有內建思源字型的裝置）時，每載完一批就重新填版
+  var refitTimer;
+  function refit() { clearTimeout(refitTimer); refitTimer = setTimeout(function () { fitPages(); scaleSheets(); }, 120); }
+  // 整體縮放改用 transform：文字以原尺寸排版後再等比縮小，
+  // 不會觸發 Safari 的最小字級限制（以 zoom 縮小時，小字會被放大回來而溢出）。
   function scaleSheets() {
     if (!sheets) return;
-    if (body.classList.contains('tt-read')) { sheets.style.zoom = 1; return; }
-    sheets.style.zoom = Math.min(1, (document.documentElement.clientWidth - 32) / PAGE_W);
+    var st = sheets.style;
+    st.zoom = '';
+    if (body.classList.contains('tt-read')) { st.transform = st.width = st.marginBottom = ''; return; }
+    var full = PAGE_W + 32, vw = document.documentElement.clientWidth;
+    var s = Math.min(1, vw / full);
+    if (s >= 1) { st.transform = st.width = st.marginBottom = ''; return; }
+    st.width = full + 'px';
+    st.transformOrigin = '0 0';
+    st.transform = 'scale(' + s + ')';
+    st.marginBottom = (-(sheets.offsetHeight * (1 - s))) + 'px';
   }
   function setMode(mode, save) {
     body.classList.toggle('tt-read', mode === 'read');
@@ -43,8 +60,9 @@
       b.setAttribute('aria-pressed', b.getAttribute('data-mode') === mode ? 'true' : 'false');
     });
     if (save) setS(KEY, mode);
-    scaleSheets();
+    if (mode === 'page' && fitted) refit(); else scaleSheets();
   }
+  var fitted = false;
   document.querySelectorAll('[data-mode]').forEach(function (b) {
     b.addEventListener('click', function () { setMode(b.getAttribute('data-mode'), true); });
   });
@@ -53,9 +71,12 @@
 
   if (sheets) {
     var initial = getS(KEY) || (document.documentElement.clientWidth < 760 ? 'read' : 'page');
-    setMode('page');
+    setMode(initial);
     var ready = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
-    ready.then(function () { fitPages(); setMode(initial); });
+    ready.then(function () { fitted = true; fitPages(); scaleSheets(); });
+    if (document.fonts && document.fonts.addEventListener) document.fonts.addEventListener('loadingdone', refit);
+    window.addEventListener('load', refit);
+    setTimeout(refit, 1500); setTimeout(refit, 4000);
     window.addEventListener('resize', scaleSheets);
   }
 
