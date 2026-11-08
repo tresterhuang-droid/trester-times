@@ -13,6 +13,8 @@
 import argparse, base64, datetime as dt, html as H, json, mimetypes, os, re, shutil, subprocess, sys, tempfile
 from pathlib import Path
 from bs4 import BeautifulSoup
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import today as T
 
 ROOT = Path(__file__).resolve().parent.parent  # 網站根目錄（儲存庫根目錄）
 TOOLS = ROOT / "_tools"
@@ -129,6 +131,14 @@ def nav_link(kind, target):
     return f'<!--{kind.upper()}--><span class="pn {kind} off">{arrow_l}<span>{label}</span>{arrow_r}</span><!--/{kind.upper()}-->'
 
 
+def toolbar_today(eid, d, prev_id, next_id):
+    return (f'<nav class="tt-bar" data-id="{eid}"><a class="home" href="/">Trester Times</a>'
+            f'<span class="seg"><span class="on">今日報</span><a href="paper/">報紙版</a></span>'
+            f'<span class="date">{date_zh(d)}</span><span class="sp"></span>'
+            f'{nav_link("prev", prev_id)}{nav_link("next", next_id)}'
+            f'<a class="arc" href="/archive/"><span class="hide-m">回</span>歷史資料庫</a></nav>')
+
+
 def toolbar(eid, d, prev_id, next_id, pages, modes):
     opts = "".join(f'<option value="{pid}">{H.escape(lbl)}</option>' for pid, lbl in pages)
     seg = ('<span class="seg"><button data-mode="page">版面</button><button data-mode="read">閱讀</button></span>'
@@ -136,8 +146,8 @@ def toolbar(eid, d, prev_id, next_id, pages, modes):
     return (f'<nav class="tt-bar" data-id="{eid}"><a class="home" href="/">Trester Times</a>'
             f'<span class="date">{date_zh(d)}</span><span class="sp"></span>'
             f'<select class="jump" aria-label="跳到版次"><option value="">版次</option>{opts}</select>'
-            f'{nav_link("prev", prev_id)}{nav_link("next", next_id)}'
-            f'<a class="arc" href="/#archive">回歷史資料庫</a>{seg}<button class="prt" data-print>列印</button></nav>')
+            f'<a class="arc" href="../">‹ 今日報</a><a class="arc" href="/archive/">回歷史資料庫</a>'
+            f'{seg}<button class="prt" data-print>列印</button></nav>')
 
 
 def set_nav(eid, kind, target, password):
@@ -177,6 +187,7 @@ def build_edition(src: Path, d: dt.date, prev_id, next_id):
         css = css.replace('"Noto Sans CJK TC"', '"Noto Sans CJK TC","Noto Sans TC"')
         st.string = css
 
+    issue = T.parse_issue(BeautifulSoup(str(soup), "html.parser"))
     # 首頁與歸檔需要的資訊
     main = soup.select_one(".fgrid .main")
     headline = txt(main.find("h2")) if main else ""
@@ -199,7 +210,8 @@ def build_edition(src: Path, d: dt.date, prev_id, next_id):
         pages.append((code, f"{code} {zh}".strip()))
 
     meta = {"id": eid, "date": d.isoformat(), "date_zh": date_zh(d), "headline": headline, "tag": lead_tag,
-            "cat": category_of(lead_tag), "deck": deck, "teasers": teasers, "pages": len(pages), "source": "html"}
+            "cat": category_of(lead_tag), "deck": deck, "teasers": teasers, "pages": len(pages), "source": "html",
+            "stories": [{"id": x["id"], "t": x["title"], "c": x["cat"]} for x in issue["stories"]]}
 
     head = soup.head
     head.title.string = f"Trester Times｜{date_zh(d)}"
@@ -213,8 +225,8 @@ def build_edition(src: Path, d: dt.date, prev_id, next_id):
     soup.body.append(BeautifulSoup(toolbar(eid, d, prev_id, next_id, pages, True), "html.parser"))
     soup.body.append(wrap)
     soup.body.append(BeautifulSoup('<script src="/assets/web.js"></script>', "html.parser"))
-    # BeautifulSoup 會保留註解，前後期註記因此得以存續
-    return str(soup), meta
+    today_page = T.render_today(issue, eid, date_zh(d), toolbar_today(eid, d, prev_id, next_id), len(pages))
+    return str(soup), meta, today_page
 
 
 def build_pdf_edition(pdf: Path, d: dt.date, prev_id, next_id, meta_in: dict):
@@ -297,6 +309,11 @@ header .pub{font:400 12px "Noto Sans TC",sans-serif;letter-spacing:.25em;color:v
 .row .c b:empty{display:none}
 .row.unread .d:after{content:"";position:absolute;left:-12px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--red)}
 .row.read .h{color:#4a453b;font-weight:500}
+.hits{display:none;list-style:none;margin:0 0 6px 76px;padding:0;font:15px/1.5 "Noto Serif TC",serif}
+.hits li{display:none;padding:5px 0 5px 12px;border-left:2px solid var(--red)}
+.hits li.on{display:block}
+.hits a{color:var(--ink)}.hits a:hover{color:var(--red)}
+.searching .hits{display:block}
 .empty{display:none;padding:28px 0;text-align:center;font:400 14px "Noto Sans TC",sans-serif;color:var(--mute)}
 footer{margin-top:40px;border-top:1px solid var(--ink);padding-top:8px;font:400 12px "Noto Sans TC",sans-serif;color:var(--mute);display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
 @media (max-width:600px){.row.unread .d:after{left:-9px}.bar{flex-direction:column;gap:2px}}
@@ -322,7 +339,9 @@ INDEX_JS = r"""
   // 搜尋與分類
   var q=document.querySelector('.search input'),cat='',chips=[].slice.call(document.querySelectorAll('.chips button'));
   function apply(){var s=(q.value||'').trim().toLowerCase(),n=0;
-    rows.forEach(function(r){var ok=(!cat||r.dataset.cat===cat)&&(!s||r.dataset.q.indexOf(s)>-1);r.style.display=ok?'':'none';if(ok)n++;});
+    document.getElementById('archive').classList.toggle('searching',!!s);
+    rows.forEach(function(r){var hit=0;r.querySelectorAll('.hits li').forEach(function(li){var m=!!s&&li.dataset.q.indexOf(s)>-1;li.classList.toggle('on',m);if(m)hit++;});
+      var ok=(!cat||r.dataset.cat===cat)&&(!s||r.dataset.q.indexOf(s)>-1);r.style.display=ok?'':'none';if(ok)n++;});
     document.querySelectorAll('.month').forEach(function(m){var v=[].some.call(m.querySelectorAll('.row'),function(r){return r.style.display!=='none'});m.style.display=v?'':'none';});
     document.querySelector('.empty').style.display=n?'none':'block';document.querySelector('#archive h2 small').textContent=(s||cat)?('符合 '+n+' 期'):('共 '+rows.length+' 期');}
   q.addEventListener('input',apply);
@@ -360,12 +379,17 @@ def build_index(entries):
         rows = []
         for e in es:
             d = dt.date.fromisoformat(e["date"])
-            q = (e["headline"] + " " + e.get("tag", "") + " " + e["_cat"] + " " + e.get("deck", "")).lower()
+            sts = e.get("stories", [])
+            q = (e["headline"] + " " + e.get("tag", "") + " " + e["_cat"] + " " + e.get("deck", "") + " "
+                 + " ".join(x["t"] for x in sts)).lower()
+            hits = "".join(f'<li data-q="{esc(x["t"].lower())}"><a href="/e/{e["id"]}/#s-{x["id"]}">{esc(x["t"])}</a></li>'
+                           for x in sts)
             src = "原版面" if e.get("source") == "pdf" else "網頁版"
             rows.append(f'<li class="row" data-id="{e["id"]}" data-md="{d.month}/{d.day}" data-cat="{esc(e["_cat"])}" '
                         f'data-q="{esc(q)}"><a href="/e/{e["id"]}/"><span class="d">{d.month}/{d.day}<i>週{WEEK[d.weekday()]}</i></span>'
                         f'<span class="h">{esc(e["headline"])}</span>'
-                        f'<span class="c"><b>{esc(e["_cat"])}</b>{e.get("pages", "")} 版　{src}</span></a></li>')
+                        f'<span class="c"><b>{esc(e["_cat"])}</b>{len(sts) or ""}{" 則　" if sts else ""}{e.get("pages", "")} 版</span></a>'
+                        f'<ul class="hits">{hits}</ul></li>')
         months.append(f'<section class="month"><h3>{int(ym[:4])} 年 {int(ym[4:])} 月<small>{len(es)} 期</small></h3>'
                       f'<ol>{"".join(rows)}</ol></section>')
     ld = dt.date.fromisoformat(latest["date"])
@@ -373,14 +397,14 @@ def build_index(entries):
     return f'''<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8">{HEAD_META}
 <title>Trester Times</title>{FONTS_LINK}<style>{INDEX_CSS}</style></head><body><div class="wrap">
 <header><h1>Trester Times</h1><div class="sub">每日晨報　·　城市／地方／制度／世界</div><div class="pub">發行人　Cho-Yun, Huang</div></header>
-<div class="bar"><span><b>最新一期</b>　{esc(latest["date_zh"])}</span><span><a href="#archive">歷史資料庫 {len(entries)} 期 ↓</a></span></div>
+<div class="bar"><span><b>最新一期</b>　{esc(latest["date_zh"])}</span><span><a href="/e/{latest["id"]}/">回今日報 →</a></span></div>
 <div class="resume">上次讀到<a href="#"></a></div>
 <a class="latest" href="/e/{latest["id"]}/" data-id="{latest["id"]}"><div class="kicker"><span class="today" style="display:none">今日</span>{kick_tag}</div>
 <h2>{esc(latest["headline"])}</h2><p>{esc(latest.get("deck"))}</p><span class="go">閱讀 {ld.month}/{ld.day} 晨報</span></a>
 {teas_html}
 <section id="archive"><h2>歷史資料庫<small>共 {len(entries)} 期</small></h2>
 <div class="tools"><label class="search"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-<input type="search" placeholder="搜尋頭條，例如：都更、選舉、颱風" aria-label="搜尋頭條"></label><div class="chips">{chips}</div></div>
+<input type="search" placeholder="搜尋所有報導標題，例如：都更、碳費、地方創生" aria-label="搜尋報導"></label><div class="chips">{chips}</div></div>
 {"".join(months)}<p class="empty">沒有符合的期數</p></section>
 <footer><span>Trester Times　發行人 Cho-Yun, Huang　每日 09:00 出刊</span><span>本報內容為新聞彙整與編輯觀察，事實以原始來源為準</span></footer>
 </div><script>{INDEX_JS}</script></body></html>'''
@@ -414,19 +438,29 @@ def main():
         meta_in = json.loads(Path(a.meta).read_text(encoding="utf-8")) if a.meta else {}
         page, meta = build_pdf_edition(Path(a.pdf).resolve(), d, prev_id, next_id, meta_in)
     else:
-        page, meta = build_edition(Path(a.src).resolve(), d, prev_id, next_id)
+        page, meta, today_page = build_edition(Path(a.src).resolve(), d, prev_id, next_id)
     if a.category:
         meta["cat"] = a.category
     entries.append(meta)
 
     HEADLINES[a.date] = meta["headline"]
-    write_encrypted(page, ROOT / "e" / a.date / "index.html", pw)
+    if a.pdf:
+        write_encrypted(page, ROOT / "e" / a.date / "index.html", pw)
+    else:
+        write_encrypted(today_page, ROOT / "e" / a.date / "index.html", pw)
+        write_encrypted(page, ROOT / "e" / a.date / "paper" / "index.html", pw)
     # 讓相鄰兩期指向這一期
     if prev_id:
         set_nav(prev_id, "next", a.date, pw)
     if next_id:
         set_nav(next_id, "prev", a.date, pw)
-    write_encrypted(build_index(entries), ROOT / "index.html", pw)
+    write_encrypted(build_index(entries), ROOT / "archive" / "index.html", pw)
+    latest = max(e["id"] for e in entries)
+    (ROOT / "index.html").write_text(
+        f'<!doctype html><meta charset="utf-8"><meta name="robots" content="noindex,nofollow">'
+        f'<title>Trester Times</title><meta http-equiv="refresh" content="0;url=/e/{latest}/">'
+        f'<script>location.replace("/e/{latest}/"+location.hash)</script><a href="/e/{latest}/">Trester Times</a>',
+        encoding="utf-8")
     for e in entries:
         e.pop("_cat", None)
     save_manifest(entries, pw)
