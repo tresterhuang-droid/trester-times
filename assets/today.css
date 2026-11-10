@@ -20,7 +20,7 @@ a:hover{color:var(--red)}
 .tt-bar .seg a,.tt-bar .seg span{padding:9px 12px}
 .tt-bar .seg .on{background:var(--red)}
 .tt-bar .sp{flex:1}
-.tt-bar .pn{display:inline-flex;align-items:center;gap:3px}
+.tt-bar .pn{display:inline-flex;align-items:center;gap:3px;margin-top:0}
 .tt-bar .pn.off{opacity:.3}
 .tt-bar .date{opacity:.75}
 
